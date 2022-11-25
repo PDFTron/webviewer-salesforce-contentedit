@@ -2,6 +2,8 @@ var resourceURL = '/resource/'
 window.CoreControls.forceBackendType('ems');
 
 var urlSearch = new URLSearchParams(location.hash)
+
+//get custom object created in pdftronWvInstance.js and parse from iframe URL parameters
 var custom = JSON.parse(urlSearch.get('custom'));
 resourceURL = resourceURL + custom.namespacePrefix + 'V810';
 
@@ -126,6 +128,10 @@ window.addEventListener('viewerLoaded', async function () {
   //select Edit ribbon
   instance.setToolbarGroup(instance.UI.ToolbarGroup.EDIT);
 
+  //auto select a tool from https://www.pdftron.com/api/web/Core.Tools.html#.ToolNames__anchor
+  instance.UI.setToolMode(instance.Core.Tools.ToolNames.TEXT_SELECT);
+
+  //add hotkeys to execute saveDocument() function
   instance.hotkeys.on('ctrl+s, command+s', e => {
     e.preventDefault();
     saveDocument();
@@ -150,15 +156,19 @@ window.addEventListener('viewerLoaded', async function () {
   // to invoke annotManager.setCurrentUser
   instance.Core.documentViewer.getAnnotationManager().setCurrentUser(custom.username);
 
+  //add the custom modal to WebViewer UI
   createSavedModal(instance);
 });
 
+//on completion of document load, execute logic
 window.addEventListener('documentLoaded', () => {
-
+  //your function here
 })
 
+//on receive of payload from postMessage call, execute receiveMessage() function
 window.addEventListener("message", receiveMessage, false);
 
+//handler for postMessage()
 function receiveMessage(event) {
   if (event.isTrusted && typeof event.data === 'object') {
     switch (event.data.type) {
