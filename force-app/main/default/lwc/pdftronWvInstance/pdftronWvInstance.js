@@ -145,7 +145,7 @@ export default class PdftronWvInstance extends LightningElement {
             fireEvent(this.pageRef, 'refreshOnSave', error);
             console.error(event.data.payload.contentDocumentId);
             console.error(JSON.stringify(error));
-            this.showNotification('Error', 'There was an error when saving your document: ' + error.body, 'error')
+            //this.showNotification('Error', 'There was an error when saving your document: ' + error.body, 'error')
           });
           break;
         default:

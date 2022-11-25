@@ -8,6 +8,7 @@ var custom = JSON.parse(urlSearch.get('custom'));
 resourceURL = resourceURL + custom.namespacePrefix + 'V810';
 
 /**
+ * WORKER FILE SETUP
  * The following `window.CoreControls.set*` functions point WebViewer to the
  * optimized source code specific for the Salesforce platform, to ensure the
  * uploaded files stay under the 5mb limit
@@ -35,14 +36,19 @@ if (custom.fullAPI) {
 // external 3rd party libraries
 window.CoreControls.setExternalPath(resourceURL + 'external')
 
+//end WORKER FILE SETUP
+
 //enable content editing feature
 instance.UI.enableFeatures(instance.Feature.ContentEdit);
 
 let currentDocId;
 
 async function saveDocument() {
+  //optimize font within document (embedFonts: false, subsetFonts: true)
+  await createOptimizerSettings(false, true);
+
   // SF document file size limit
-  const docLimit = 5 * Math.pow(1024, 2);
+  const docLimit = 3 * Math.pow(1024, 2);
   const doc = instance.Core.documentViewer.getDocument();
   if (!doc) {
     return;
@@ -71,8 +77,13 @@ async function saveDocument() {
     base64Data,
     contentDocumentId: currentDocId
   }
-  // download files larger than 5MB, else save back to Salesforce files
-  fileSize < docLimit ? parent.postMessage({ type: 'SAVE_DOCUMENT', payload }, '*') : downloadWebViewerFile();
+  // download files larger than docLimit, else save back to Salesforce files
+  if(fileSize < docLimit) {
+    parent.postMessage({ type: 'SAVE_DOCUMENT', payload }, '*')
+  } else {
+    alert('Downloading file due to file size: ' + fileSize/ Math.pow(1024, 2) + 'MB')
+    downloadWebViewerFile();
+  }
 }
 
 //create a custom modal
@@ -90,6 +101,45 @@ const createSavedModal = (instance) => {
     }
   }
   instance.UI.addCustomModal(modal);
+}
+
+//create save logic
+const createSaveLogic = (instance) => {
+  //add hotkeys to execute saveDocument() function
+  instance.hotkeys.on('ctrl+s, command+s', e => {
+    e.preventDefault();
+    saveDocument();
+  });
+
+  // Create a button, with a disk icon, to invoke the saveDocument function
+  instance.setHeaderItems(function (header) {
+    var myCustomButton = {
+      type: 'actionButton',
+      dataElement: 'saveDocumentButton',
+      title: 'Save Document to Salesforce',
+      img: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M0 0h24v24H0z" fill="none"/><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>',
+      onClick: function () {
+        saveDocument();
+      }
+    }
+    header.get('searchButton').insertBefore(myCustomButton);
+  });
+
+  //add the custom modal to WebViewer UI
+  createSavedModal(instance);
+}
+
+const createOptimizerSettings = async (embedFonts, subsetFonts) => {
+  const { Optimizer } = PDFNet //requires fullAPI = true
+  const pDoc = await instance.Core.documentViewer.getDocument().getPDFDoc()
+
+  const ts = new Optimizer.TextSettings();
+  ts.embedFonts(embedFonts);
+  ts.subsetFonts(subsetFonts);
+
+  const optSettings = new Optimizer.OptimizerSettings();
+  optSettings.setTextSettings(ts);
+  Optimizer.optimize(pDoc, optSettings);
 }
 
 //get the current file data from WebViewer and download as blob
@@ -125,44 +175,22 @@ const downloadFile = (blob, fileName) => {
 
 //on viewer load, execute the following logic
 window.addEventListener('viewerLoaded', async function () {
-  //select Edit ribbon
-  instance.setToolbarGroup(instance.UI.ToolbarGroup.EDIT);
-
-  //auto select a tool from https://www.pdftron.com/api/web/Core.Tools.html#.ToolNames__anchor
-  instance.UI.setToolMode(instance.Core.Tools.ToolNames.TEXT_SELECT);
-
-  //add hotkeys to execute saveDocument() function
-  instance.hotkeys.on('ctrl+s, command+s', e => {
-    e.preventDefault();
-    saveDocument();
-  });
-
-  // Create a button, with a disk icon, to invoke the saveDocument function
-  instance.setHeaderItems(function (header) {
-    var myCustomButton = {
-      type: 'actionButton',
-      dataElement: 'saveDocumentButton',
-      title: 'tool.SaveDocument',
-      img: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M0 0h24v24H0z" fill="none"/><path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/></svg>',
-      onClick: function () {
-        saveDocument();
-      }
-    }
-    header.get('viewControlsButton').insertBefore(myCustomButton);
-  });
+  //select ribbon from UI
+  instance.setToolbarGroup(instance.UI.ToolbarGroup.ANNOTATE);
 
   // When the viewer has loaded, this makes the necessary call to get the
   // pdftronWvInstance code to pass User Record information to this config file
   // to invoke annotManager.setCurrentUser
   instance.Core.documentViewer.getAnnotationManager().setCurrentUser(custom.username);
 
-  //add the custom modal to WebViewer UI
-  createSavedModal(instance);
+  //create button/hotkey/custom modal for saving files
+  createSaveLogic(instance);
 });
 
 //on completion of document load, execute logic
-window.addEventListener('documentLoaded', () => {
-  //your function here
+window.addEventListener('documentLoaded', async () => {
+  //example: auto select a tool from https://www.pdftron.com/api/web/Core.Tools.html#.ToolNames__anchor
+  instance.UI.setToolMode(instance.Core.Tools.ToolNames.TEXT_SELECT);
 })
 
 //on receive of payload from postMessage call, execute receiveMessage() function
