@@ -108,6 +108,7 @@ export default class PdftronWvInstance extends LightningElement {
     const viewerElement = this.template.querySelector('div')
     // eslint-disable-next-line no-unused-vars
     const viewer = new WebViewer({
+      preloadWorker: `${WebViewer.WorkerTypes.PDF},${WebViewer.WorkerTypes.CONTENT_EDIT}`,
       path: libUrl, // path to the PDFTron 'lib' folder on your server
       custom: JSON.stringify(myObj),
       backendType: 'ems',
@@ -131,24 +132,35 @@ export default class PdftronWvInstance extends LightningElement {
     if (event.isTrusted && typeof event.data === 'object') {
       switch (event.data.type) {
         case 'SAVE_DOCUMENT':
+          this.showNotification('Save in progress', 'Your changes are being saved. Please do not close this window.', 'warning')
           const cvId = event.data.payload.contentDocumentId;
           saveDocument({ json: JSON.stringify(event.data.payload), recordId: this.recordId ? this.recordId : '', cvId: cvId })
           .then((response) => {
             me.iframeWindow.postMessage({ type: 'DOCUMENT_SAVED', response }, '*')
             fireEvent(this.pageRef, 'refreshOnSave', response);
+            this.showNotification('Document saved', 'Your document was saved successfully!', 'success')
           })
           .catch(error => {
             me.iframeWindow.postMessage({ type: 'DOCUMENT_SAVED', error }, '*')
             fireEvent(this.pageRef, 'refreshOnSave', error);
             console.error(event.data.payload.contentDocumentId);
             console.error(JSON.stringify(error));
-            this.showNotification('Error', error.body, 'error')
+            this.showNotification('Error', 'There was an error when saving your document: ' + error.body, 'error')
           });
           break;
         default:
           break;
       }
     }
+  }
+
+  showNotification (title, message, variant) {
+    const evt = new ShowToastEvent({
+      title: title,
+      message: message,
+      variant: variant
+    })
+    this.dispatchEvent(evt)
   }
 
   downloadDocument() {

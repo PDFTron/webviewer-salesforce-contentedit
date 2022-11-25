@@ -32,11 +32,11 @@ if (custom.fullAPI) {
 
 // external 3rd party libraries
 window.CoreControls.setExternalPath(resourceURL + 'external')
-window.CoreControls.setCustomFontURL('https://pdftron.s3.amazonaws.com/custom/ID-zJWLuhTffd3c/vlocity/webfontsv20/');
+
+//enable content editing feature
+instance.UI.enableFeatures(instance.Feature.ContentEdit);
 
 let currentDocId;
-
-instance.UI.enableFeatures(instance.Feature.ContentEdit);
 
 async function saveDocument() {
   // SF document file size limit
@@ -69,10 +69,28 @@ async function saveDocument() {
     base64Data,
     contentDocumentId: currentDocId
   }
-  // Post message to LWC
+  // download files larger than 5MB, else save back to Salesforce files
   fileSize < docLimit ? parent.postMessage({ type: 'SAVE_DOCUMENT', payload }, '*') : downloadWebViewerFile();
 }
 
+//create a custom modal
+const createSavedModal = (instance) => {
+  const divInput = document.createElement('div');
+  divInput.innerText = 'File saved successfully.';
+  const modal = {
+    dataElement: 'savedModal',
+    body: {
+      className: 'myCustomModal-body',
+      style: {
+        'text-align': 'center'
+      },
+      children: [divInput]
+    }
+  }
+  instance.UI.addCustomModal(modal);
+}
+
+//get the current file data from WebViewer and download as blob
 const downloadWebViewerFile = async () => {
   const doc = instance.Core.documentViewer.getDocument();
 
@@ -89,6 +107,7 @@ const downloadWebViewerFile = async () => {
   downloadFile(blob, filename)
 }
 
+//download a blob manually
 const downloadFile = (blob, fileName) => {
   const link = document.createElement('a');
   // create a blobURI pointing to our Blob
@@ -102,7 +121,11 @@ const downloadFile = (blob, fileName) => {
   setTimeout(() => URL.revokeObjectURL(link.href), 7000);
 };
 
+//on viewer load, execute the following logic
 window.addEventListener('viewerLoaded', async function () {
+  //select Edit ribbon
+  instance.setToolbarGroup(instance.UI.ToolbarGroup.EDIT);
+
   instance.hotkeys.on('ctrl+s, command+s', e => {
     e.preventDefault();
     saveDocument();
@@ -126,7 +149,13 @@ window.addEventListener('viewerLoaded', async function () {
   // pdftronWvInstance code to pass User Record information to this config file
   // to invoke annotManager.setCurrentUser
   instance.Core.documentViewer.getAnnotationManager().setCurrentUser(custom.username);
+
+  createSavedModal(instance);
 });
+
+window.addEventListener('documentLoaded', () => {
+
+})
 
 window.addEventListener("message", receiveMessage, false);
 
@@ -148,9 +177,9 @@ function receiveMessage(event) {
         break;
       case 'DOCUMENT_SAVED':
         console.log(`${JSON.stringify(event.data)}`);
-        instance.showErrorMessage('Document saved ')
+        instance.UI.openElements(['savedModal']);
         setTimeout(() => {
-          instance.closeElements(['errorModal', 'loadingModal'])
+          instance.closeElements(['savedModal', 'loadingModal'])
         }, 2000)
         break;
       case 'LMS_RECEIVED':  
